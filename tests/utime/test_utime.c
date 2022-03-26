@@ -51,9 +51,9 @@ void test() {
   stat("writeable", &s);
   assert(s.st_atime == s.st_mtime);
   long diff = s.st_atime - now;
-  if (abs(diff) > 5) {
-    fprintf(stderr, "st_atime: %li, now: %li, diff: %li\n ", s.st_atime, now, diff);
-    assert(abs(diff) <= 5);
+  if (labs(diff) > 5) {
+    fprintf(stderr, "st_atime: %i, now: %li, diff: %li\n ", s.st_atime, now, diff);
+    assert(labs(diff) <= 5);
   }
 
   // write permissions aren't checked when setting node

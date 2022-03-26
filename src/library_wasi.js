@@ -57,12 +57,12 @@ var WasiLibrary = {
   environ_sizes_get__sig: 'ipp',
   environ_sizes_get: function(penviron_count, penviron_buf_size) {
     var strings = getEnvStrings();
-    {{{ makeSetValue('penviron_count', 0, 'strings.length', 'i32') }}};
+    {{{ makeSetValue('penviron_count', 0, 'strings.length', SIZE_TYPE) }}};
     var bufSize = 0;
     strings.forEach(function(string) {
       bufSize += string.length + 1;
     });
-    {{{ makeSetValue('penviron_buf_size', 0, 'bufSize', 'i32') }}};
+    {{{ makeSetValue('penviron_buf_size', 0, 'bufSize', SIZE_TYPE) }}};
     return 0;
   },
 
@@ -77,7 +77,7 @@ var WasiLibrary = {
     var bufSize = 0;
     getEnvStrings().forEach(function(string, i) {
       var ptr = environ_buf + bufSize;
-      {{{ makeSetValue('__environ', 'i * 4', 'ptr', 'i32') }}};
+      {{{ makeSetValue('__environ', `i*${Runtime.POINTER_SIZE}`, 'ptr', POINTER_TYPE) }}};
       writeAsciiToMemory(string, ptr);
       bufSize += string.length + 1;
     });
