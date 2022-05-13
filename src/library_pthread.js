@@ -94,7 +94,7 @@ var LibraryPThread = {
       // worker.js is not compiled together with us, and must access certain
       // things.
       PThread['receiveObjectTransfer'] = PThread.receiveObjectTransfer;
-      PThread['threadInit'] = PThread.threadInit;
+      PThread['threadInitTLS'] = PThread.threadInitTLS;
 #if !MINIMAL_RUNTIME
       PThread['setExitStatus'] = PThread.setExitStatus;
 #endif
@@ -231,9 +231,9 @@ var LibraryPThread = {
 #endif
     },
     // Called by worker.js each time a thread is started.
-    threadInit: function() {
+    threadInitTLS: function() {
 #if PTHREADS_DEBUG
-      err('threadInit.');
+      err('threadInitTLS.');
 #endif
       // Call thread init functions (these are the emscripten_tls_init for each
       // module loaded.
@@ -634,7 +634,6 @@ var LibraryPThread = {
 #if ASSERTIONS
     PThread.mainRuntimeThread = true;
 #endif
-    PThread.threadInit();
   },
 
   $pthreadCreateProxied__internal: true,
@@ -1000,12 +999,12 @@ var LibraryPThread = {
     var stackSize = {{{ makeGetValue('pthread_ptr', C_STRUCTS.pthread.stack_size, 'i32') }}};
     var stackMax = stackTop - stackSize;
 #if PTHREADS_DEBUG
-    err('establishStackSpace: ' + stackTop + ' -> ' + stackMax);
+    err('establishStackSpace: ' + ptrToString(stackTop) + ' -> ' + ptrToString(stackMax));
 #endif
 #if ASSERTIONS
-    assert(stackTop != 0);
-    assert(stackMax != 0);
-    assert(stackTop > stackMax);
+    assert(stackTop != 0, 'bad stackTop');
+    assert(stackMax != 0, 'bad stackTop');
+    assert(stackTop > stackMax, 'stackTop must be higher then stackMax');
 #endif
     // Set stack limits used by `emscripten/stack.h` function.  These limits are
     // cached in wasm-side globals to make checks as fast as possible.

@@ -34,6 +34,9 @@
 #include <emscripten/proxying.h>
 #include <emscripten/stack.h>
 #include <emscripten/threading.h>
+// Included for emscripten_builtin_memalign
+// TODO(sbc): Should these be in their own header to avoid emmalloc here?
+#include <emscripten/emmalloc.h>
 
 #include "threading_internal.h"
 
@@ -687,4 +690,10 @@ void __emscripten_init_main_thread(void) {
   // TODO(sbc): Implement circular list of threads
   //__main_pthread.next = __main_pthread.prev = &__main_pthread;
   __main_pthread.tsd = (void **)__pthread_tsd_main;
+
+  size_t tls_size = __builtin_wasm_tls_size();
+  size_t tls_align = __builtin_wasm_tls_align();
+  __main_pthread.tls_base = emscripten_builtin_memalign(tls_align, tls_size);
+  //printf("__emscripten_init_main_thread stack[%p] stack_size[%x] tls_base[%p]\n", __main_pthread.stack, __main_pthread.stack_size, __main_pthread.tls_base);
+  emscripten_tls_init();
 }

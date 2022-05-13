@@ -5,13 +5,10 @@
  * found in the LICENSE file.
  */
 
-// Included for emscripten_builtin_free / emscripten_builtin_malloc
-// TODO(sbc): Should these be in their own header to avoid emmalloc here?
-#include <emscripten/emmalloc.h>
-#include <pthread.h>
+#include "pthread_impl.h"
 
 // Uncomment to trace TLS allocations.
-// #define DEBUG_TLS
+#define DEBUG_TLS
 #ifdef DEBUG_TLS
 #include <stdio.h>
 #endif
@@ -22,14 +19,12 @@ extern void __wasm_init_tls(void *memory);
 extern int __dso_handle;
 
 void* emscripten_tls_init(void) {
-  size_t tls_size = __builtin_wasm_tls_size();
-  size_t tls_align = __builtin_wasm_tls_align();
-  if (!tls_size) {
+  if (!__builtin_wasm_tls_size()) {
     return NULL;
   }
-  void *tls_block = emscripten_builtin_memalign(tls_align, tls_size);
+  void *tls_block = __pthread_self()->tls_base;
 #ifdef DEBUG_TLS
-  printf("tls init: thread[%p] dso[%p] -> %p\n", pthread_self(), &__dso_handle, tls_block);
+  printf("tls init: thread[%p] dso[%p] tls_base[%p]\n", __pthread_self(), &__dso_handle, tls_block);
 #endif
   __wasm_init_tls(tls_block);
   return tls_block;

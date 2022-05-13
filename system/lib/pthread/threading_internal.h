@@ -98,6 +98,7 @@ typedef struct thread_profiler_block {
 
 void __emscripten_init_main_thread_js(void* tb);
 void _emscripten_thread_profiler_enable();
+void* emscripten_tls_init(void);
 
 #ifdef NDEBUG
 #define emscripten_set_current_thread_status(newStatus)
@@ -120,3 +121,5 @@ void emscripten_set_current_thread_status(EM_THREAD_STATUS newStatus);
 // this is a no-op.
 void emscripten_conditional_set_current_thread_status(EM_THREAD_STATUS expectedStatus, EM_THREAD_STATUS newStatus);
 #endif
+
+
