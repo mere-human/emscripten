@@ -168,7 +168,7 @@ int Directory::Handle::insertMove(const std::string& name,
   if (oldIt != oldCache.end()) {
     // Do the move and update the caches.
     auto [oldName, entry] = *oldIt;
-    assert(oldName.size());
+    assert(oldName.str().size());
     // Update parent pointers and caches to reflect the successful move.
     oldCache.erase(oldIt);
     auto& newCache = getDir()->dcache;
@@ -218,7 +218,7 @@ std::string Directory::Handle::getName(std::shared_ptr<File> file) {
   auto& dcache = getDir()->dcache;
   for (auto it = dcache.begin(); it != dcache.end(); ++it) {
     if (it->second.file == file) {
-      return it->first;
+      return it->first.str();
     }
   }
   return "";

@@ -21,6 +21,43 @@
 
 namespace wasmfs {
 
+class path_string {
+  std::string path;
+
+public:
+  path_string() = default;
+  path_string(const std::string& p) : path(p) {}
+  path_string(const char* p) : path(p) {}
+  const std::string& str() const { return path; }
+};
+
+inline bool operator==(const path_string& x, const path_string& y) {
+#ifdef WASMFS_CASE_INSENSITIVE
+  auto&& a = x.str();
+  auto&& b = y.str();
+  return a.size() == b.size() &&
+         strncasecmp(a.c_str(), b.c_str(), b.size()) == 0;
+#else
+  return x.str() == y.str();
+#endif
+}
+
+inline bool operator!=(const path_string& x, const path_string& y) {
+  return !(x == y);
+}
+
+inline bool operator<(const path_string& x, const path_string& y) {
+#ifdef WASMFS_CASE_INSENSITIVE
+  return strcasecmp(x.str().c_str(), y.str().c_str()) < 0;
+#else
+  return x.str() < y.str();
+#endif
+}
+
+inline bool operator>(const path_string& x, const path_string& y) {
+  return y < x;
+}
+
 // Note: The general locking strategy for all Files is to only hold 1 lock at a
 // time to prevent deadlock. This methodology can be seen in getDirs().
 
@@ -166,7 +203,7 @@ public:
 class Directory : public File {
 public:
   struct Entry {
-    std::string name;
+    path_string name;
     FileKind kind;
     ino_t ino;
   };
@@ -182,7 +219,7 @@ private:
     std::shared_ptr<File> file;
   };
   // TODO: Use a cache data structure with smaller code size.
-  std::map<std::string, DCacheEntry> dcache;
+  std::map<path_string, DCacheEntry> dcache;
 
 protected:
   // Return the `File` object corresponding to the file with the given name or

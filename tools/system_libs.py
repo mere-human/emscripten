@@ -1544,6 +1544,12 @@ class libwasmfs(DebugLibrary, AsanInstrumentedLibrary, MTLibrary):
 
   includes = ['system/lib/wasmfs', 'system/lib/pthread']
 
+  def get_cflags(self):
+    cflags = super().get_cflags()
+    if settings.CASE_INSENSITIVE_FS:
+      cflags += ['-DWASMFS_CASE_INSENSITIVE']
+    return cflags
+
   def get_files(self):
     backends = files_in_path(
         path='system/lib/wasmfs/backends',
