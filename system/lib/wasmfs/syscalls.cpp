@@ -904,8 +904,8 @@ int __syscall_getdents64(int fd, intptr_t dirp, size_t count) {
         result->d_type = DT_UNKNOWN;
         break;
     }
-    assert(entry.name.str().size() + 1 <= sizeof(result->d_name));
-    strcpy(result->d_name, entry.name.str().c_str());
+    assert(entry.name.size() + 1 <= sizeof(result->d_name));
+    strcpy(result->d_name, entry.name.c_str());
     ++result;
     bytesRead += sizeof(dirent);
   }

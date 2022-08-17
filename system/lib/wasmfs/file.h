@@ -21,42 +21,42 @@
 
 namespace wasmfs {
 
-class path_string {
-  std::string path;
-
+// Represents a file path component.
+// It exists mainly to support case-insensitive paths.
+class PathString {
 public:
-  path_string() = default;
-  path_string(const std::string& p) : path(p) {}
-  path_string(const char* p) : path(p) {}
-  const std::string& str() const { return path; }
+  using StringT = std::string;
+
+  PathString() = default;
+  PathString(const StringT& p) : path(p) {}
+  PathString(const char* p) : path(p) {}
+
+  const StringT& str() const { return path; }
+  const StringT::value_type* c_str() const noexcept { return path.c_str(); }
+  StringT::size_type size() const noexcept { return path.size(); }
+
+  bool operator==(const PathString& other) const {
+#ifdef WASMFS_CASE_INSENSITIVE
+    return size() == other.size() &&
+           strncasecmp(c_str(), other.c_str(), other.size()) == 0;
+#else
+    return str() == other.str();
+#endif
+  }
+
+  bool operator!=(const PathString& other) const { return !(*this == other); }
+
+  bool operator<(const PathString& other) const {
+#ifdef WASMFS_CASE_INSENSITIVE
+    return strcasecmp(c_str(), other.c_str()) < 0;
+#else
+    return str() < other.str();
+#endif
+  }
+
+private:
+  StringT path;
 };
-
-inline bool operator==(const path_string& x, const path_string& y) {
-#ifdef WASMFS_CASE_INSENSITIVE
-  auto&& a = x.str();
-  auto&& b = y.str();
-  return a.size() == b.size() &&
-         strncasecmp(a.c_str(), b.c_str(), b.size()) == 0;
-#else
-  return x.str() == y.str();
-#endif
-}
-
-inline bool operator!=(const path_string& x, const path_string& y) {
-  return !(x == y);
-}
-
-inline bool operator<(const path_string& x, const path_string& y) {
-#ifdef WASMFS_CASE_INSENSITIVE
-  return strcasecmp(x.str().c_str(), y.str().c_str()) < 0;
-#else
-  return x.str() < y.str();
-#endif
-}
-
-inline bool operator>(const path_string& x, const path_string& y) {
-  return y < x;
-}
 
 // Note: The general locking strategy for all Files is to only hold 1 lock at a
 // time to prevent deadlock. This methodology can be seen in getDirs().
@@ -203,7 +203,7 @@ public:
 class Directory : public File {
 public:
   struct Entry {
-    path_string name;
+    PathString name;
     FileKind kind;
     ino_t ino;
   };
@@ -219,7 +219,7 @@ private:
     std::shared_ptr<File> file;
   };
   // TODO: Use a cache data structure with smaller code size.
-  std::map<path_string, DCacheEntry> dcache;
+  std::map<PathString, DCacheEntry> dcache;
 
 protected:
   // Return the `File` object corresponding to the file with the given name or

@@ -47,17 +47,17 @@ public:
 class MemoryDirectory : public Directory {
   // Use a vector instead of a map to save code size.
   struct ChildEntry {
-    path_string name;
+    PathString name;
     std::shared_ptr<File> child;
   };
 
   std::vector<ChildEntry> entries;
 
-  std::vector<ChildEntry>::iterator findEntry(const path_string& name);
+  std::vector<ChildEntry>::iterator findEntry(const PathString& name);
 
 protected:
   void insertChild(const std::string& name, std::shared_ptr<File> child) {
-    path_string path(name);
+    PathString path(name);
     assert(findEntry(path) == entries.end());
     entries.push_back({path, child});
   }

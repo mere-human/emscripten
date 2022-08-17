@@ -32,7 +32,7 @@ ssize_t MemoryFile::read(uint8_t* buf, size_t len, off_t offset) {
 }
 
 std::vector<MemoryDirectory::ChildEntry>::iterator
-MemoryDirectory::findEntry(const path_string& name) {
+MemoryDirectory::findEntry(const PathString& name) {
   return std::find_if(entries.begin(), entries.end(), [&](const auto& entry) {
     return entry.name == name;
   });
