@@ -12,6 +12,8 @@
 #include <string.h>
 #include <sys/stat.h>
 #include <unistd.h>
+#include <string>
+#include <vector>
 
 void write_file(const char* fname) {
   FILE* fp = fopen(fname, "wt");
@@ -37,22 +39,22 @@ int exists(const char* fname) {
   return stat(fname, &st) == 0 ? 1 : 0;
 }
 
-int get_dir_files(const char* dname) {
+std::vector<std::string> get_dir_files(const char* dname) {
   printf("Files in '%s': ", dname);
-  int nfiles = 0;
+  std::vector<std::string> files;
   DIR* d = opendir("subdir");
   if (d) {
     struct dirent* dir;
     while ((dir = readdir(d)) != NULL) {
       if (dir->d_type == DT_REG) {
-        ++nfiles;
+        files.emplace_back(dir->d_name);
         printf("%s ", dir->d_name);
       }
     }
     closedir(d);
   }
   printf("\n");
-  return nfiles;
+  return files;
 }
 
 int main() {
@@ -87,7 +89,12 @@ int main() {
   write_file("SubDir/Test.txt");
   assert(exists("subdir/test.txt"));
   read_file("subdir/Test.txt");
-  assert(get_dir_files("subdir") == 1);
+  auto dir_files = get_dir_files("subdir");
+  assert(dir_files.size() == 1);
+
+  // File name and letter-case should be the same as at the moment of creation.
+  assert(std::find(dir_files.begin(), dir_files.end(), "Test.txt") != dir_files.end());
+  assert(std::find(dir_files.begin(), dir_files.end(), "test.txt") == dir_files.end());
 
 #ifdef WASMFS
   assert(unlink("SUBDIR/TEST.TXT") == 0);
@@ -96,7 +103,7 @@ int main() {
   assert(unlink("subdir/Test.txt") == 0);
 #endif
   assert(!exists("subdir/test.txt"));
-  assert(get_dir_files("subdir") == 0);
+  assert(get_dir_files("subdir").size() == 0);
 
   assert(rmdir("Subdir") == 0);
   assert(!exists("subdir"));

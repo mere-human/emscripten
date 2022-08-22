@@ -12477,4 +12477,4 @@ Module['postRun'] = function() {{
 
   @also_with_wasmfs
   def test_fs_icase(self):
-    self.do_other_test('test_fs_icase.c', emcc_args=['-sCASE_INSENSITIVE_FS=1'])
+    self.do_other_test('test_fs_icase.cpp', emcc_args=['-sCASE_INSENSITIVE_FS=1'])
