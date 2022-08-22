@@ -5320,14 +5320,6 @@ Module["preRun"].push(function () {
     self.btest_exit(test, args=args + ['-DWASMFS_SETUP'])
     self.btest_exit(test, args=args + ['-DWASMFS_RESUME'])
 
-  @parameterized({
-    'default': (['-sCASE_INSENSITIVE_FS=1'],),
-    'wasmfs': (['-sWASMFS', '-sCASE_INSENSITIVE_FS=1', '-DWASMFS'],),
-  })
-  def test_path_icase(self, args):
-    test = test_file('test_path_icase.c')
-    self.btest_exit(test, args=args)
-
   @requires_threads
   @no_firefox('no OPFS support yet')
   def test_wasmfs_opfs_errors(self):

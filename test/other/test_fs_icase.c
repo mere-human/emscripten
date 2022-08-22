@@ -101,5 +101,7 @@ int main() {
   assert(rmdir("Subdir") == 0);
   assert(!exists("subdir"));
 
+  printf("ok\n");
+
   return 0;
 }
