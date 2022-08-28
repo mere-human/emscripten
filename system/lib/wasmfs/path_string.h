@@ -8,7 +8,7 @@
 #include <string>
 
 #ifdef WASMFS_CASE_INSENSITIVE
-#include <strings.h>
+#include <cctype>
 #endif
 
 namespace wasmfs {
@@ -20,34 +20,33 @@ public:
   using StringT = std::string;
 
   PathString() = default;
-  PathString(const StringT& p) : path(p) {}
-  PathString(const char* p) : path(p) {}
-
-  const StringT& str() const { return path; }
-  const StringT::value_type* c_str() const noexcept { return path.c_str(); }
-  StringT::size_type size() const noexcept { return path.size(); }
-
-  bool operator==(const PathString& other) const {
+  PathString(const StringT& p) : path(p) {
 #ifdef WASMFS_CASE_INSENSITIVE
-    return size() == other.size() &&
-           strncasecmp(c_str(), other.c_str(), other.size()) == 0;
-#else
-    return str() == other.str();
+    pathNormalized.reserve(p.size());
+    for (auto ch : p) {
+      pathNormalized.push_back(std::tolower(ch));
+    }
 #endif
   }
+  PathString(const char* p) : PathString(StringT{p}) {}
 
-  bool operator!=(const PathString& other) const { return !(*this == other); }
+  const StringT& publicName() const { return path; }
 
-  bool operator<(const PathString& other) const {
+  const StringT& internalName() const {
 #ifdef WASMFS_CASE_INSENSITIVE
-    return strcasecmp(c_str(), other.c_str()) < 0;
+    return pathNormalized;
 #else
-    return str() < other.str();
+    return path;
 #endif
   }
 
 private:
-  StringT path;
+  StringT path; // Contains an entity name in original letter case. When in case
+                // insensitive mode, it's used for case preservation.
+#ifdef WASMFS_CASE_INSENSITIVE
+  StringT pathNormalized; // Contains enity name for internal usage:
+                          // searching, passing to backends, etc.
+#endif
 };
 
 } // namespace wasmfs

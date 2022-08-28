@@ -167,7 +167,7 @@ public:
 class Directory : public File {
 public:
   struct Entry {
-    PathString name;
+    std::string name;
     FileKind kind;
     ino_t ino;
   };
@@ -181,9 +181,12 @@ private:
   struct DCacheEntry {
     DCacheKind kind;
     std::shared_ptr<File> file;
+#ifdef WASMFS_CASE_INSENSITIVE
+    std::string originalName;  // Used for case preservation.
+#endif
   };
   // TODO: Use a cache data structure with smaller code size.
-  std::map<PathString, DCacheEntry> dcache;
+  std::map<std::string, DCacheEntry> dcache;
 
 protected:
   // Return the `File` object corresponding to the file with the given name or
@@ -340,7 +343,7 @@ public:
 
 class Directory::Handle : public File::Handle {
   std::shared_ptr<Directory> getDir() { return file->cast<Directory>(); }
-  void cacheChild(const std::string& name,
+  void cacheChild(const PathString& name,
                   std::shared_ptr<File> child,
                   DCacheKind kind);
 
@@ -351,23 +354,23 @@ public:
 
   // Retrieve the child if it is in the dcache and otherwise forward the request
   // to the backend, caching any `File` object it returns.
-  std::shared_ptr<File> getChild(const std::string& name);
+  std::shared_ptr<File> getChild(const PathString& name);
 
   // Add a child to this directory's entry cache without actually inserting it
   // in the underlying backend. Assumes a child with this name does not already
   // exist. Return `true` on success and `false` otherwise.
-  bool mountChild(const std::string& name, std::shared_ptr<File> file);
+  bool mountChild(const PathString& name, std::shared_ptr<File> file);
 
   // Insert a child of the given name, kind, and mode in the underlying backend,
   // which will allocate and return a corresponding `File` on success or return
   // nullptr otherwise. Assumes a child with this name does not already exist.
   // If the operation failed, returns nullptr.
-  std::shared_ptr<DataFile> insertDataFile(const std::string& name,
+  std::shared_ptr<DataFile> insertDataFile(const PathString& name,
                                            mode_t mode);
-  std::shared_ptr<Directory> insertDirectory(const std::string& name,
+  std::shared_ptr<Directory> insertDirectory(const PathString& name,
                                              mode_t mode);
-  std::shared_ptr<Symlink> insertSymlink(const std::string& name,
-                                         const std::string& target);
+  std::shared_ptr<Symlink> insertSymlink(const PathString& name,
+                                         const PathString& target);
 
   // Move the file represented by `file` from its current directory to this
   // directory with the new `name`, possibly overwriting another file that
@@ -375,13 +378,13 @@ public:
   // directory. On success return 0 and otherwise return a negative error code
   // without changing any underlying state. This should only be called from
   // renameat with the locks on the old and new parents already held.
-  [[nodiscard]] int insertMove(const std::string& name,
+  [[nodiscard]] int insertMove(const PathString& name,
                                std::shared_ptr<File> file);
 
   // Remove the file with the given name, returning `true` on success or if the
   // vhild has already been removed or returning `false` if the child cannot be
   // removed.
-  bool removeChild(const std::string& name);
+  bool removeChild(const PathString& name);
 
   std::string getName(std::shared_ptr<File> file);
 

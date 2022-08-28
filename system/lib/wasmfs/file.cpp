@@ -40,7 +40,7 @@ void DataFile::Handle::preloadFromJS(int index) {
 // Directory
 //
 
-void Directory::Handle::cacheChild(const std::string& name,
+void Directory::Handle::cacheChild(const PathString& name,
                                    std::shared_ptr<File> child,
                                    DCacheKind kind) {
   // Update the dcache if the backend hasn't opted out of using the dcache or if
@@ -48,7 +48,13 @@ void Directory::Handle::cacheChild(const std::string& name,
   // backend.
   if (kind == DCacheKind::Mount || !getDir()->maintainsFileIdentity()) {
     auto& dcache = getDir()->dcache;
-    auto [_, inserted] = dcache.insert({name, {kind, child}});
+    auto [_, inserted] = dcache.insert({name.internalName(),
+                                        {kind,
+                                        child,
+  #ifdef WASMFS_CASE_INSENSITIVE
+                                        name.publicName()
+  #endif
+                                        }});
     assert(inserted && "inserted child already existed!");
   }
   // Set the child's parent.
@@ -57,25 +63,25 @@ void Directory::Handle::cacheChild(const std::string& name,
   child->locked().setParent(getDir());
 }
 
-std::shared_ptr<File> Directory::Handle::getChild(const std::string& name) {
+std::shared_ptr<File> Directory::Handle::getChild(const PathString& name) {
   // Unlinked directories must be empty, without even "." or ".."
   if (!getParent()) {
     return nullptr;
   }
-  if (name == ".") {
+  if (name.publicName() == ".") {
     return file;
   }
-  if (name == "..") {
+  if (name.publicName() == "..") {
     return getParent();
   }
   // Check whether the cache already contains this child.
   auto& dcache = getDir()->dcache;
-  if (auto it = dcache.find(name); it != dcache.end()) {
+  if (auto it = dcache.find(name.internalName()); it != dcache.end()) {
     return it->second.file;
   }
   // Otherwise check whether the backend contains an underlying file we don't
   // know about.
-  auto child = getDir()->getChild(name);
+  auto child = getDir()->getChild(name.internalName());
   if (!child) {
     return nullptr;
   }
@@ -83,7 +89,7 @@ std::shared_ptr<File> Directory::Handle::getChild(const std::string& name) {
   return child;
 }
 
-bool Directory::Handle::mountChild(const std::string& name,
+bool Directory::Handle::mountChild(const PathString& name,
                                    std::shared_ptr<File> child) {
   assert(child);
   // Cannot insert into an unlinked directory.
@@ -95,12 +101,12 @@ bool Directory::Handle::mountChild(const std::string& name,
 }
 
 std::shared_ptr<DataFile>
-Directory::Handle::insertDataFile(const std::string& name, mode_t mode) {
+Directory::Handle::insertDataFile(const PathString& name, mode_t mode) {
   // Cannot insert into an unlinked directory.
   if (!getParent()) {
     return nullptr;
   }
-  auto child = getDir()->insertDataFile(name, mode);
+  auto child = getDir()->insertDataFile(name.internalName(), mode);
   if (!child) {
     return nullptr;
   }
@@ -110,12 +116,12 @@ Directory::Handle::insertDataFile(const std::string& name, mode_t mode) {
 }
 
 std::shared_ptr<Directory>
-Directory::Handle::insertDirectory(const std::string& name, mode_t mode) {
+Directory::Handle::insertDirectory(const PathString& name, mode_t mode) {
   // Cannot insert into an unlinked directory.
   if (!getParent()) {
     return nullptr;
   }
-  auto child = getDir()->insertDirectory(name, mode);
+  auto child = getDir()->insertDirectory(name.internalName(), mode);
   if (!child) {
     return nullptr;
   }
@@ -125,13 +131,13 @@ Directory::Handle::insertDirectory(const std::string& name, mode_t mode) {
 }
 
 std::shared_ptr<Symlink>
-Directory::Handle::insertSymlink(const std::string& name,
-                                 const std::string& target) {
+Directory::Handle::insertSymlink(const PathString& name,
+                                 const PathString& target) {
   // Cannot insert into an unlinked directory.
   if (!getParent()) {
     return nullptr;
   }
-  auto child = getDir()->insertSymlink(name, target);
+  auto child = getDir()->insertSymlink(name.internalName(), target.internalName());
   if (!child) {
     return nullptr;
   }
@@ -143,7 +149,7 @@ Directory::Handle::insertSymlink(const std::string& name,
 // TODO: consider moving this to be `Backend::move` to avoid asymmetry between
 // the source and destination directories and/or taking `Directory::Handle`
 // arguments to prove that the directories have already been locked.
-int Directory::Handle::insertMove(const std::string& name,
+int Directory::Handle::insertMove(const PathString& name,
                                   std::shared_ptr<File> file) {
   // Cannot insert into an unlinked directory.
   if (!getParent()) {
@@ -161,18 +167,18 @@ int Directory::Handle::insertMove(const std::string& name,
   // involving the backend.
 
   // Attempt the move.
-  if (auto err = getDir()->insertMove(name, file)) {
+  if (auto err = getDir()->insertMove(name.internalName(), file)) {
     return err;
   }
 
   if (oldIt != oldCache.end()) {
     // Do the move and update the caches.
     auto [oldName, entry] = *oldIt;
-    assert(oldName.str().size());
+    assert(oldName.size());
     // Update parent pointers and caches to reflect the successful move.
     oldCache.erase(oldIt);
     auto& newCache = getDir()->dcache;
-    auto [it, inserted] = newCache.insert({name, entry});
+    auto [it, inserted] = newCache.insert({name.internalName(), entry});
     if (!inserted) {
       // Update and overwrite the overwritten file.
       it->second.file->locked().setParent(nullptr);
@@ -192,15 +198,15 @@ int Directory::Handle::insertMove(const std::string& name,
   return 0;
 }
 
-bool Directory::Handle::removeChild(const std::string& name) {
+bool Directory::Handle::removeChild(const PathString& name) {
   auto& dcache = getDir()->dcache;
-  auto entry = dcache.find(name);
+  auto entry = dcache.find(name.internalName());
   // If this is a mount, we don't need to call into the backend.
   if (entry != dcache.end() && entry->second.kind == DCacheKind::Mount) {
     dcache.erase(entry);
     return true;
   }
-  if (!getDir()->removeChild(name)) {
+  if (!getDir()->removeChild(name.internalName())) {
     return false;
   }
   if (entry != dcache.end()) {
@@ -218,7 +224,12 @@ std::string Directory::Handle::getName(std::shared_ptr<File> file) {
   auto& dcache = getDir()->dcache;
   for (auto it = dcache.begin(); it != dcache.end(); ++it) {
     if (it->second.file == file) {
-      return it->first.str();
+#ifdef WASMFS_CASE_INSENSITIVE
+      return it->second.originalName.empty() ? it->first
+                                             : it->second.originalName;
+#else
+      return it->first;
+#endif
     }
   }
   return "";
@@ -244,6 +255,20 @@ std::vector<Directory::Entry> Directory::Handle::getEntries() {
       entries.push_back({name, entry.file->kind, entry.file->getIno()});
     }
   }
+
+#ifdef WASMFS_CASE_INSENSITIVE
+  // Restore the original name of the entries (case preservation).
+  for (auto& e : entries) {
+    auto it = dcache.find(e.name);
+    if (it != dcache.end()) {
+      const auto& f = it->second.file;
+      if (e.ino == f->getIno() && e.kind == f->kind) {
+        e.name = it->second.originalName;
+      }
+    }
+  }
+#endif
+
   return entries;
 }
 

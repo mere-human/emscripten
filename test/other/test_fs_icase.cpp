@@ -15,6 +15,8 @@
 #include <string>
 #include <vector>
 
+// TODO: check different WasmFS backends.
+
 void write_file(const char* fname) {
   FILE* fp = fopen(fname, "wt");
   assert(fp);
@@ -39,7 +41,7 @@ int exists(const char* fname) {
   return stat(fname, &st) == 0 ? 1 : 0;
 }
 
-std::vector<std::string> get_dir_files(const char* dname) {
+std::vector<std::string> readdir(const char* dname) {
   printf("Files in '%s': ", dname);
   std::vector<std::string> files;
   DIR* d = opendir("subdir");
@@ -58,22 +60,24 @@ std::vector<std::string> get_dir_files(const char* dname) {
 }
 
 int main() {
+  // Create a file.
   write_file("test.txt");
 
+  // Read and check the file.
   struct stat st;
   assert(stat("test.txt", &st) == 0);
   assert(st.st_size == 4);
-
   assert(exists("test.TXT"));
   assert(exists("Test.Txt"));
-
   read_file("Test.txt");
 
+  // Rename the file.
   assert(rename("tesT.Txt", "test2.txt") == 0);
   assert(exists("test2.txt"));
   assert(exists("Test2.txt"));
   read_file("Test2.txt");
 
+  // Delete the file.
 #ifdef WASMFS
   assert(unlink("TEST2.txt") == 0);
 #else
@@ -83,19 +87,25 @@ int main() {
   assert(!exists("TEST2.txt"));
   assert(!exists("test2.txt"));
 
-  assert(mkdir("subdir", S_IRWXUGO) == 0);
+  // Create a directory.
+  assert(mkdir("Subdir", S_IRWXUGO) == 0);
+  assert(exists("Subdir"));
   assert(exists("subdir"));
+  assert(mkdir("SUBDIR", S_IRWXUGO) != 0);
+  assert(errno == EEXIST);
 
+  // Create a file in the directory.
   write_file("SubDir/Test.txt");
   assert(exists("subdir/test.txt"));
   read_file("subdir/Test.txt");
-  auto dir_files = get_dir_files("subdir");
-  assert(dir_files.size() == 1);
 
-  // File name and letter-case should be the same as at the moment of creation.
+  // Check directory contents and entries name.
+  auto dir_files = readdir("subdir");
+  assert(dir_files.size() == 1);
   assert(std::find(dir_files.begin(), dir_files.end(), "Test.txt") != dir_files.end());
   assert(std::find(dir_files.begin(), dir_files.end(), "test.txt") == dir_files.end());
 
+  // Delete a file from a directory.
 #ifdef WASMFS
   assert(unlink("SUBDIR/TEST.TXT") == 0);
 #else
@@ -103,10 +113,29 @@ int main() {
   assert(unlink("subdir/Test.txt") == 0);
 #endif
   assert(!exists("subdir/test.txt"));
-  assert(get_dir_files("subdir").size() == 0);
+  assert(readdir("subdir").size() == 0);
 
-  assert(rmdir("Subdir") == 0);
+  // Check current directory name and case.
+  assert(chdir("subdir") == 0);
+  char buffer[256];
+  printf("getcwd: %s\n", getcwd(buffer, sizeof(buffer)));
+#ifdef WASMFS
+  assert(std::string(buffer).ends_with("Subdir"));
+#else
+  // FS.lookupNode doesn't preserve case. But in theory it could.
+  assert(std::string(buffer).ends_with("subdir"));
+#endif
+  assert(chdir("..") == 0);
+
+  // Rename a directory.
+  assert(rename("subdir", "Subdir2") == 0);
   assert(!exists("subdir"));
+  assert(exists("subdir2"));
+
+  // Delete a directory.
+  assert(rmdir("SUBDIR2") == 0);
+  assert(!exists("SUBDIR2"));
+  assert(!exists("Subdir2"));
 
   printf("ok\n");
 
