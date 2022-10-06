@@ -65,15 +65,9 @@ Directory::MaybeEntries MemoryDirectory::getEntries() {
 
 int MemoryDirectory::insertMove(const std::string& name,
                                 std::shared_ptr<File> file) {
-  auto& oldEntries =
-    std::static_pointer_cast<MemoryDirectory>(file->locked().getParent())
-      ->entries;
-  for (auto it = oldEntries.begin(); it != oldEntries.end(); ++it) {
-    if (it->child == file) {
-      oldEntries.erase(it);
-      break;
-    }
-  }
+  auto oldParent = file->locked().getParent();
+  auto oldName = oldParent->locked().getName(file);
+  (void)oldParent->locked().removeChild(oldName);  // Is it actually right thing to do?
   (void)removeChild(name);
   insertChild(name, file);
   return 0;

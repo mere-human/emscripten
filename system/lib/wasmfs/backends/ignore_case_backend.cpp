@@ -30,7 +30,14 @@ namespace wasmfs {
 class IgnoreCaseDirectory : public MemoryDirectory {
   using BaseClass = MemoryDirectory;
   std::shared_ptr<Directory> baseDirectory;
-  std::map<std::string, std::string> origNames;
+  std::vector<std::string> origNames; // same index as in entries
+
+  void insertChild(const std::string& name,
+                   std::shared_ptr<File> child) override {
+    BaseClass::insertChild(normalize(name), child);
+    origNames.push_back(name);
+    assert(entries.size() == origNames.size());
+  }
 
 public:
   IgnoreCaseDirectory(std::shared_ptr<Directory> base, backend_t proxyBackend)
@@ -46,8 +53,7 @@ public:
     auto baseDirLocked = baseDirectory->locked();
     auto child = baseDirLocked.insertDataFile(name2, mode);
     if (child) {
-      insertChild(name2, child);
-      origNames[name2] = name;
+      insertChild(name, child);
       // Directory::Hanlde needs a parent
       child->locked().setParent(cast<Directory>());
     }
@@ -59,11 +65,11 @@ public:
     auto name2 = normalize(name);
     auto baseDirLocked = baseDirectory->locked();
     if (!baseDirLocked.getParent())
-      baseDirLocked.setParent(parent.lock()); // Directory::Hanlde needs a parent
+      baseDirLocked.setParent(
+        parent.lock()); // Directory::Hanlde needs a parent
     auto baseChild = baseDirLocked.insertDirectory(name2, mode);
     auto child = std::make_shared<IgnoreCaseDirectory>(baseChild, getBackend());
-    insertChild(name2, child);
-    origNames[name2] = name;
+    insertChild(name, child);
     return child;
   }
 
@@ -72,8 +78,7 @@ public:
     auto name2 = normalize(name);
     auto child = baseDirectory->locked().insertSymlink(name2, target);
     if (child) {
-      insertChild(name2, child);
-      origNames[name2] = name;
+      insertChild(name, child);
       // Directory::Hanlde needs a parent
       child->locked().setParent(cast<Directory>());
     }
@@ -95,44 +100,51 @@ public:
     if (auto err = oldParent.removeChild(oldName2))
       return err;
     // Cache file with the new name in this directory.
-    insertChild(name2, file);
-    origNames[name2] = name;
+    insertChild(name, file);
     file->locked().setParent(cast<Directory>());
     return 0;
   }
 
   int removeChild(const std::string& name) override {
     auto name2 = normalize(name);
+    ptrdiff_t pos = -1;
+    if (auto it = findEntry(name2); it != entries.end())
+      pos = std::distance(entries.begin(), it);
     if (auto err = BaseClass::removeChild(name2))
       return err;
-    auto it = origNames.find(name2);
-    if (it != origNames.end())
+    if (pos >= 0) {
+      auto it = std::next(origNames.begin(), pos);
       origNames.erase(it);
+    }
+    assert(entries.size() == origNames.size());
     return baseDirectory->locked().removeChild(name2);
   }
 
-  ssize_t getNumEntries() override { return baseDirectory->locked().getNumEntries(); }
+  ssize_t getNumEntries() override {
+    return baseDirectory->locked().getNumEntries();
+  }
 
   Directory::MaybeEntries getEntries() override {
-    auto e = baseDirectory->locked().getEntries();
-    if (e.getError()) {
-      return e;
+    auto xs = baseDirectory->locked().getEntries();
+    if (xs.getError()) {
+      return xs;
     }
-    // Restore case:
-    for (size_t i = 0; i != e->size(); ++i) {
-      auto it = origNames.find(e->at(i).name);
-      if (it != origNames.end()) {
-        e->at(i).name = it->second;
+    for (size_t i = 0; i != xs->size(); ++i) {
+      auto& x = xs->at(i);
+      if (auto it = findEntry(normalize(x.name)); it != entries.end()) {
+        auto pos = std::distance(entries.begin(), it);
+        x.name = origNames[pos];
       }
     }
-    return e;
+    return xs;
   }
 
   std::string getName(std::shared_ptr<File> file) override {
-    // Restore case:
-    auto n = BaseClass::getName(file);
-    auto it = origNames.find(n);
-    return it == origNames.end() ? n : it->second;
+    for (size_t i = 0; i != entries.size(); ++i) {
+      if (entries[i].child == file)
+        return origNames[i];
+    }
+    return {};
   }
 
   bool maintainsFileIdentity() override { return true; }
